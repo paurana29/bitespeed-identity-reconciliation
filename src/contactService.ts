@@ -52,11 +52,14 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 const primary = [];
                 for (const id of secondaryLinkedIds.values()) {
                     const result = await client.query<Contact>(
-                        'SELECT * FROM Contact WHERE id = $1 BY createdat ASC',
+                        'SELECT * FROM Contact WHERE id = $1',
                             [id]
                     );
                     primary.push(result.rows[0]);
                 }
+                
+                //primary array is expected to be sorted by time because primaryContact is ultimately primary[0]
+                primary.sort((a, b) => new Date(a.createdat).getTime() - new Date(b.createdat).getTime());
                 primaryContacts = primary;                
             }
 
