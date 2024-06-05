@@ -97,7 +97,6 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             };
             const oldPrimaryNowSecondary = await Promise.all(oldPrimary);
 
-            //huge bug! which is now fixed yes. bascially roots (seconadries) should also change their linkedids
             //secondaries of all old primaries must also declare their new primary to be `primaryContact`
             //the var names are getting too big lmao fix asap
             const secondariesOfOldPrimaries = [];
