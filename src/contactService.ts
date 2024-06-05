@@ -89,10 +89,25 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             };
             const oldPrimaryNowSecondary = await Promise.all(oldPrimary);
 
+            //huge bug!
+            //secondaries of all old primaries must also declare their new primary to be `primaryContact`
+            //the var names are getting too big lmao fix asap
+            const secondariesOfOldPrimaries = [];
+            for(let i=1; i<primaryContacts.length; ++i) {
+                secondariesOfOldPrimaries.push(client.query(
+                    'UPDATE Contact SET linkedid = $1 WHERE linkedid = $2 RETURNING *',
+                        [primaryContact.id, primaryContacts[i].id]
+                ));
+            };
+            await Promise.all(secondariesOfOldPrimaries);
+
+            //okay this might be redundant? if i iterate over secondaries of all old primaries,
+            //further iteration is probably not required. 
+            //added clause linkedid != $1 to avoid unnecessary updation
             const updatesSecondary = [];
             for(let id of secondaryContactsSet) {
                 updatesSecondary.push(client.query(
-                    'UPDATE Contact SET linkedid = $1 WHERE id = $2',
+                    'UPDATE Contact SET linkedid = $1 WHERE id = $2 and linkedid <> $1',
                         [primaryContact.id, id]
                 ));
             };
