@@ -20,10 +20,22 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
 
     const client = await pool.connect();
     try {
-        const contacts = await client.query<Contact>(
+        let contacts = await client.query<Contact>(
             'SELECT * FROM Contact WHERE email = $1 OR phonenumber = $2 ORDER BY createdat ASC',
                 [email, phonenumber]
         );
+
+        let countEmail = 0;
+        let countPhone = 0;
+
+        contacts.rows.forEach(contact => {
+            if (contact.email === email) {
+                countEmail++;
+            }
+            if (contact.phonenumber === phonenumber) {
+                countPhone++;
+            }
+        });
 
         if(contacts.rows.length>0) {
             let primaryContacts = contacts.rows.filter(contact => contact.linkprecedence === 'primary');
@@ -31,7 +43,7 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
 
             if(primaryContacts.length === 0) {
                 let secondaryLinkedIds = new Set<number>(contacts.rows.filter(contact => contact.linkprecedence === 'secondary' && contact.linkedid !== null).map((contact: Contact) => contact.linkedid as number));
-                if(secondaryLinkedIds.size == 0) {
+                if(secondaryLinkedIds.size === 0) {
                     return {
                         error: "DB ERROR: Primary Contact Not Found"
                     }
@@ -49,6 +61,20 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             }
 
             const primaryContact = primaryContacts[0];
+            if(email !== "" && countEmail === 0) {
+                const newContact = await client.query<Contact>(
+                    'INSERT INTO Contact (email, phonenumber, linkprecedence, linkedid) VALUES ($1, $2, $3, $4) RETURNING *',
+                    [email, phonenumber, 'secondary', primaryContact.id]
+                );
+                secondaryContactsSet.add(newContact.rows[0].id);
+            }
+            if(phonenumber !== "" && countPhone === 0) {
+                const newContact = await client.query<Contact>(
+                    'INSERT INTO Contact (email, phonenumber, linkprecedence, linkedid) VALUES ($1, $2, $3, $4) RETURNING *',
+                    [email, phonenumber, 'secondary', primaryContact.id]
+                );
+                secondaryContactsSet.add(newContact.rows[0].id);
+            }
 
             const linkedToPrimary = await client.query<Contact>(
                 'SELECT * FROM Contact WHERE linkedid = $1',
