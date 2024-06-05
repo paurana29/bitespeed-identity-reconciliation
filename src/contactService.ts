@@ -72,14 +72,6 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 secondaryContactsSet.add(newContact.rows[0].id);
             }
 
-            const linkedToPrimary = await client.query<Contact>(
-                'SELECT * FROM Contact WHERE linkedid = $1',
-                    [primaryContact.id]
-            );
-            linkedToPrimary.rows.forEach(row => {
-                secondaryContactsSet.add(row.id);
-            });
-
             const oldPrimary = [];
             for(let i=1; i<primaryContacts.length; ++i) {
                 oldPrimary.push(client.query(
@@ -100,6 +92,15 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 ));
             };
             await Promise.all(secondariesOfOldPrimaries);
+
+            //db updated but resp still the same, moving this function here should do the trick
+            const linkedToPrimary = await client.query<Contact>(
+                'SELECT * FROM Contact WHERE linkedid = $1',
+                    [primaryContact.id]
+            );
+            linkedToPrimary.rows.forEach(row => {
+                secondaryContactsSet.add(row.id);
+            });
 
             //okay this might be redundant? if i iterate over secondaries of all old primaries,
             //further iteration is probably not required. 
