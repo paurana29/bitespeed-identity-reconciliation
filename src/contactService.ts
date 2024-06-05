@@ -12,6 +12,7 @@ interface Contact {
 }
 
 export const findOrCreateContact = async (email?: string, phonenumber?: string) => {
+    //if email and phonenumber both are blank, error!
     if(!email && !phonenumber) {
         return {
             error: "QUERY ERROR: Both email and phonenumber cannot be NULL"
@@ -28,6 +29,8 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
         let countEmail = 0;
         let countPhone = 0;
 
+        //if the count remains zero, the email/phone has been entered for the first time
+        //we have new info, needs to be added to the db
         contacts.rows.forEach(contact => {
             if (contact.email === email) {
                 countEmail++;
@@ -37,18 +40,27 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             }
         });
 
+        //the db has seen either the email or phonenumber before
         if(contacts.rows.length>0) {
             let primaryContacts = contacts.rows.filter(contact => contact.linkprecedence === 'primary');
+            //this was changed to a set because the entire record is not needed, we can only make do with `unique` ids, and in the end,
+            //query the database for the records. saves unnecessary space, and easier to work with instead of doing rows[x].id everytime
+            //set also works quite well with the controller logic, we do not want repeated redundancies in the response
             let secondaryContactsSet = new Set<number>(contacts.rows.filter(contact => contact.linkprecedence === 'secondary').map(contact => contact.id));
 
+            //it's possible that the initial query only returns secondary records, in this case, we need to go through the linkedids of the seconadries to reach the
+            //primary records
             if(primaryContacts.length === 0) {
                 let secondaryLinkedIds = new Set<number>(contacts.rows.filter(contact => contact.linkprecedence === 'secondary' && contact.linkedid !== null).map((contact: Contact) => contact.linkedid as number));
+                
+                //this shouldn't be possible in a safe db which is consistent, error returned incase of inconsistent state
                 if(secondaryLinkedIds.size === 0) {
                     return {
                         error: "DB ERROR: Primary Contact Not Found"
                     }
                 }
 
+                //primary is the array of all the possible primary records incase we only found secondary records in our initial query
                 const primary = [];
                 for (const id of secondaryLinkedIds.values()) {
                     const result = await client.query<Contact>(
@@ -64,6 +76,8 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             }
 
             const primaryContact = primaryContacts[0];
+            //this is where the count logic is used. if we have a new entry for either email/phonenumber, add 
+            //secondary record to the database
             if ((email !== "" && countEmail === 0) || (phonenumber !== "" && countPhone === 0)) {
                 const newContact = await client.query<Contact>(
                     'INSERT INTO Contact (email, phonenumber, linkprecedence, linkedid) VALUES ($1, $2, $3, $4) RETURNING *',
@@ -72,6 +86,8 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 secondaryContactsSet.add(newContact.rows[0].id);
             }
 
+            //primaryContact is the new primary, the other primaries, if encountered, must be set to secondary, and their linkedid
+            //must point to the primaryContact we have found
             const oldPrimary = [];
             for(let i=1; i<primaryContacts.length; ++i) {
                 oldPrimary.push(client.query(
@@ -81,7 +97,7 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             };
             const oldPrimaryNowSecondary = await Promise.all(oldPrimary);
 
-            //huge bug!
+            //huge bug! which is now fixed yes. bascially roots (seconadries) should also change their linkedids
             //secondaries of all old primaries must also declare their new primary to be `primaryContact`
             //the var names are getting too big lmao fix asap
             const secondariesOfOldPrimaries = [];
@@ -114,10 +130,12 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             };
             await Promise.all(updatesSecondary);
 
-            oldPrimaryNowSecondary.forEach(updatedContact => {
+           //new secondary ids added to the set
+           oldPrimaryNowSecondary.forEach(updatedContact => {
                 secondaryContactsSet.add(updatedContact.rows[0].id);
             });
 
+            //query the database to return the records from the ids stored in the set
             let secondaryContacts = [];
             for (let id of secondaryContactsSet) {
                 const result = await client.query<Contact>('SELECT * FROM Contact WHERE id = $1', [id]);
@@ -131,6 +149,7 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 secondaryContacts
             };
         } else {
+            //else block runs when both email and phonenumber seen for the first time
             const newContact = await client.query<Contact>(
                 'INSERT INTO Contact (email, phonenumber, linkprecedence) VALUES ($1, $2, $3) RETURNING *',
                 [email, phonenumber, 'primary']
