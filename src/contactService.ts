@@ -52,7 +52,7 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 const primary = [];
                 for (const id of secondaryLinkedIds.values()) {
                     const result = await client.query<Contact>(
-                        'SELECT * FROM Contact WHERE id = $1',
+                        'SELECT * FROM Contact WHERE id = $1 BY createdat ASC',
                             [id]
                     );
                     primary.push(result.rows[0]);
@@ -61,14 +61,7 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             }
 
             const primaryContact = primaryContacts[0];
-            if(email !== "" && countEmail === 0) {
-                const newContact = await client.query<Contact>(
-                    'INSERT INTO Contact (email, phonenumber, linkprecedence, linkedid) VALUES ($1, $2, $3, $4) RETURNING *',
-                    [email, phonenumber, 'secondary', primaryContact.id]
-                );
-                secondaryContactsSet.add(newContact.rows[0].id);
-            }
-            if(phonenumber !== "" && countPhone === 0) {
+            if ((email !== "" && countEmail === 0) || (phonenumber !== "" && countPhone === 0)) {
                 const newContact = await client.query<Contact>(
                     'INSERT INTO Contact (email, phonenumber, linkprecedence, linkedid) VALUES ($1, $2, $3, $4) RETURNING *',
                     [email, phonenumber, 'secondary', primaryContact.id]
