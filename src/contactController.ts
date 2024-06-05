@@ -13,8 +13,8 @@ export const identify = async (req: Request, res: Response) => {
     const response = {
         contact: {
             primaryContactId: primaryContact.id,
-            emails: [primaryContact.email, ...(secondaryContacts ? secondaryContacts.map(contact => contact.email).filter(email => email !== null) : [])],
-            phoneNumbers: [primaryContact.phonenumber, ...(secondaryContacts ? secondaryContacts.map(contact => contact.phonenumber).filter(phone => phone !== null) : [])],
+            emails: [primaryContact.email, ...(secondaryContacts ? secondaryContacts.map(contact => contact.email).filter(email => email !== null && email !== primaryContact.email) : [])],
+            phoneNumbers: [primaryContact.phonenumber, ...(secondaryContacts ? secondaryContacts.map(contact => contact.phonenumber).filter(phone => phone !== null && phone !== primaryContact.phonenumber) : [])],
             secondaryContactIds: (secondaryContacts ? secondaryContacts.map(contact => contact.id) : [])
         }
     };

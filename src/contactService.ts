@@ -27,10 +27,10 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
 
         if(contacts.rows.length>0) {
             let primaryContacts = contacts.rows.filter(contact => contact.linkprecedence === 'primary');
-            let secondaryContacts = contacts.rows.filter(contact => contact.linkprecedence === 'secondary');
+            let secondaryContactsSet = new Set<number>(contacts.rows.filter(contact => contact.linkprecedence === 'secondary').map(contact => contact.id));
 
             if(primaryContacts.length === 0) {
-                const secondaryLinkedIds = new Set(secondaryContacts.map(contact => contact.linkedid).filter(id => id !== null));
+                let secondaryLinkedIds = new Set<number>(contacts.rows.filter(contact => contact.linkprecedence === 'secondary' && contact.linkedid !== null).map((contact: Contact) => contact.linkedid as number));
                 if(secondaryLinkedIds.size == 0) {
                     return {
                         error: "DB ERROR: Primary Contact Not Found"
@@ -55,7 +55,7 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                     [primaryContact.id]
             );
             linkedToPrimary.rows.forEach(row => {
-                secondaryContacts.push(row);
+                secondaryContactsSet.add(row.id);
             });
 
             const oldPrimary = [];
@@ -68,17 +68,25 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             const oldPrimaryNowSecondary = await Promise.all(oldPrimary);
 
             const updatesSecondary = [];
-            for(let i=0; i<secondaryContacts.length; ++i) {
+            for(let id of secondaryContactsSet) {
                 updatesSecondary.push(client.query(
                     'UPDATE Contact SET linkedid = $1 WHERE id = $2',
-                        [primaryContact.id, secondaryContacts[i].id]
+                        [primaryContact.id, id]
                 ));
             };
             await Promise.all(updatesSecondary);
 
             oldPrimaryNowSecondary.forEach(updatedContact => {
-                secondaryContacts.push(updatedContact.rows[0]);
+                secondaryContactsSet.add(updatedContact.rows[0].id);
             });
+
+            let secondaryContacts = [];
+            for (let id of secondaryContactsSet) {
+                const result = await client.query<Contact>('SELECT * FROM Contact WHERE id = $1', [id]);
+                if (result.rows.length > 0) {
+                    secondaryContacts.push(result.rows[0]);
+                }
+            }
 
             return {
                 primaryContact,
@@ -89,8 +97,6 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
                 'INSERT INTO Contact (email, phonenumber, linkprecedence) VALUES ($1, $2, $3) RETURNING *',
                 [email, phonenumber, 'primary']
             );
-
-            console.log(newContact.rows[0]);
 
             return {
                 primaryContact: newContact.rows[0],
