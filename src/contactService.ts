@@ -19,12 +19,31 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
         };
     }
 
+    //prevents the db from crashing incase of spurious phonenumber
+    //ideally, similar check should also be present for email.length > 255
+    if(phonenumber && phonenumber.length > 15){
+        return {
+            error: "ERROR: Phonenumber length must be <= 15"
+        };
+    }
+
     const client = await pool.connect();
     try {
-        let contacts = await client.query<Contact>(
-            'SELECT * FROM Contact WHERE email = $1 OR phonenumber = $2 ORDER BY createdat ASC',
-                [email, phonenumber]
-        );
+        //fixed bug. previous query would also look up rows matching null email/phonenumber,
+        let query = 'SELECT * FROM Contact WHERE ';
+        let params: (string | null)[] = [];
+        if (email) {
+            query += 'email = $1';
+            params.push(email);
+        }
+        if (phonenumber) {
+            if (params.length > 0) query += ' OR ';
+            query += 'phonenumber = $' + (params.length + 1);
+            params.push(phonenumber);
+        }
+        query += ' ORDER BY createdat ASC';
+
+        let contacts = await client.query<Contact>(query, params);
 
         let countEmail = 0;
         let countPhone = 0;

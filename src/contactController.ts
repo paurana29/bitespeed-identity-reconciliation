@@ -13,8 +13,15 @@ export const identify = async (req: Request, res: Response) => {
     const response = {
         contact: {
             primaryContactId: primaryContact.id,
-            emails: [primaryContact.email, ...(secondaryContacts ? secondaryContacts.map(contact => contact.email).filter(email => email !== null && email !== primaryContact.email) : [])],
-            phoneNumbers: [primaryContact.phonenumber, ...(secondaryContacts ? secondaryContacts.map(contact => contact.phonenumber).filter(phone => phone !== null && phone !== primaryContact.phonenumber) : [])],
+            //fixes the edgecases when either email/phonenumber is null for the primary contact
+            emails: [
+                ...(primaryContact.email !== null ? [primaryContact.email] : []),
+                ...(secondaryContacts ? secondaryContacts.map(contact => contact.email).filter(email => email !== null && email !== primaryContact.email) : [])
+            ],
+            phoneNumbers: [
+                ...(primaryContact.phonenumber !== "" ? [primaryContact.phonenumber] : []),
+                ...(secondaryContacts ? secondaryContacts.map(contact => contact.phonenumber).filter(phone => phone !== "" && phone !== primaryContact.phonenumber) : [])
+            ],
             secondaryContactIds: (secondaryContacts ? secondaryContacts.map(contact => contact.id) : [])
         }
     };
