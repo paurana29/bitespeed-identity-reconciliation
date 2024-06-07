@@ -110,8 +110,8 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             const oldPrimary = [];
             for(let i=1; i<primaryContacts.length; ++i) {
                 oldPrimary.push(client.query(
-                    'UPDATE Contact SET linkedid = $1, linkprecedence = $2 WHERE id = $3 RETURNING *',
-                        [primaryContact.id, 'secondary', primaryContacts[i].id]
+                    'UPDATE Contact SET linkedid = $1, linkprecedence = $2, updatedat = to_timestamp($3/1000.0) WHERE id = $4 RETURNING *',
+                        [primaryContact.id, 'secondary', Date.now(), primaryContacts[i].id]
                 ));
             };
             const oldPrimaryNowSecondary = await Promise.all(oldPrimary);
@@ -121,8 +121,8 @@ export const findOrCreateContact = async (email?: string, phonenumber?: string) 
             const secondariesOfOldPrimaries = [];
             for(let i=1; i<primaryContacts.length; ++i) {
                 secondariesOfOldPrimaries.push(client.query(
-                    'UPDATE Contact SET linkedid = $1 WHERE linkedid = $2 RETURNING *',
-                        [primaryContact.id, primaryContacts[i].id]
+                    'UPDATE Contact SET linkedid = $1, updatedat = to_timestamp($2/1000.0) WHERE linkedid = $3 RETURNING *',
+                        [primaryContact.id, Date.now(), primaryContacts[i].id]
                 ));
             };
             await Promise.all(secondariesOfOldPrimaries);
